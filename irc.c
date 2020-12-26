@@ -18,92 +18,20 @@ struct irc_t {
   char buffer[BUFFER_SIZE];
 };
 
-/**
- * Creates a new IRC client instance.
- *
- * @param connection: Socket file descriptor.
- *
- * @return: A new client instance.
- **/
-irc_t *irc_init(int connection) {
-  struct irc_t *irc = calloc(1, sizeof(irc_t));
-  irc->socket_fd = connection;
-  irc->connected = 1;
-  return irc;
-}
+/** Private **/
 
 /**
- * Checks whether instance is currently connected.
+ * Processes client's buffer and extracts a message from it.
  *
- * @param irc: IRC client.
+ * @param irc: IRC client to check the buffer.
+ * @param cr_index: Pointer to carret return symbol in the buffer.
  *
- * @return: Flag indicating whether client connection is opened.
- **/
-int irc_is_connected(irc_t *irc) {
-  return irc->connected;
-}
-
-/**
- * Sends a new command through the IRC connection.
- *
- * @param irc: IRC client.
- * @param fmt: Command format string.
- * @param args: Command parameters.
- *
- * @return: 0 if sending is successfull, -1 otherwise.
- **/
-int irc_command(irc_t *irc, const char *fmt, ...) {
-  // Pasted from irc.c
-  va_list vl;
-  char outb[MESSAGE_SIZE], *outp = outb;
-
-  va_start(vl, fmt);
-  int n = vsnprintf(outp, MESSAGE_SIZE - 2, fmt, vl);
-  va_end(vl);
-  outp += n;
-  *outp++ = '\r';
-  *outp++ = '\n';
-
-  int sent = sock_send(irc->socket_fd, outb, n + 2);
-  if (sent > 0) {
-    return sent;
-  } else {
-    irc->connected = 0;
-    return -1;
-  }
-}
-
-int irc_command_literal(irc_t *irc, char *str) {
-  int sent = sock_send(irc->socket_fd, str, strlen(str));
-}
-
-/**
- * Waits for the next message from IRC connection. Block the thread while doing so.
- *
- * @param irc: IRC client.
- *
- * @return: Pointer to a new message, or NULL in case of an error.
+ * @returns: Pointer to a newly allocated IRC message.
  */
-irc_message_t *irc_next_message(irc_t *irc) {
-  char *pointer, *token;
+irc_message_t *process_buffer(irc_t *irc, char *cr_index) {
   char message_str[BUFFER_SIZE] = { 0 };
   int size;
-
-  // Commands are delimited by newline symbol.
-  char *cr_index = strchr(irc->buffer, '\n');
-
-  // Wait until we have enough data for a command.
-  fd_set readfds;
-
-  while (cr_index == NULL) {
-    FD_ZERO(&readfds);
-    FD_SET(irc->socket_fd, &readfds);
-    int activity = select(irc->socket_fd + 1, &readfds, NULL, NULL, NULL);
-
-    int current_size = strlen(irc->buffer);
-    int read = sock_receive(irc->socket_fd, irc->buffer+current_size, BUFFER_SIZE - current_size - 1);
-    cr_index = strchr(irc->buffer, '\n');
-  }
+  char *token, *pointer;
 
   // We got a message, let's parse.
   irc_message_t *message = calloc(1, sizeof(struct irc_message_t));
@@ -178,6 +106,109 @@ irc_message_t *irc_next_message(irc_t *irc) {
   return message;
 }
 
+/** Public **/
+
+/**
+ * Creates a new IRC client instance.
+ *
+ * @param connection: Socket file descriptor.
+ *
+ * @return: A new client instance.
+ **/
+irc_t *irc_init(int connection) {
+  struct irc_t *irc = calloc(1, sizeof(irc_t));
+  irc->socket_fd = connection;
+  irc->connected = 1;
+  return irc;
+}
+
+/**
+ * Checks whether instance is currently connected.
+ *
+ * @param irc: IRC client.
+ *
+ * @return: Flag indicating whether client connection is opened.
+ **/
+int irc_is_connected(irc_t *irc) {
+  return irc->connected;
+}
+
+/**
+ * Sends a new command through the IRC connection.
+ *
+ * @param irc: IRC client.
+ * @param fmt: Command format string.
+ * @param args: Command parameters.
+ *
+ * @return: 0 if sending is successfull, -1 otherwise.
+ **/
+int irc_command(irc_t *irc, const char *fmt, ...) {
+  // Pasted from irc.c
+  va_list vl;
+  char outb[MESSAGE_SIZE], *outp = outb;
+
+  va_start(vl, fmt);
+  int n = vsnprintf(outp, MESSAGE_SIZE - 2, fmt, vl);
+  va_end(vl);
+  outp += n;
+  *outp++ = '\r';
+  *outp++ = '\n';
+
+  int sent = sock_send(irc->socket_fd, outb, n + 2);
+  if (sent > 0) {
+    return sent;
+  } else {
+    irc->connected = 0;
+    return -1;
+  }
+}
+
+int irc_send_literal(irc_t *irc, char *str) {
+  int sent = sock_send(irc->socket_fd, str, strlen(str));
+}
+
+irc_message_t *irc_wait_for_next_message(irc_t *irc) {
+  char message_str[BUFFER_SIZE] = { 0 };
+
+  // Commands are delimited by newline symbol.
+  char *cr_index = strchr(irc->buffer, '\n');
+
+  fd_set readfds;
+  while (cr_index == NULL) {
+    FD_ZERO(&readfds);
+    FD_SET(irc->socket_fd, &readfds);
+    int activity = select(irc->socket_fd + 1, &readfds, NULL, NULL, NULL);
+
+    int current_size = strlen(irc->buffer);
+    int read = sock_block_receive(irc->socket_fd, irc->buffer+current_size, BUFFER_SIZE - current_size - 1);
+    cr_index = strchr(irc->buffer, '\n');
+  }
+
+  return process_buffer(irc, cr_index);
+}
+
+/**
+ * Reads new data from IRC connection and checks if there's a new message ready in the buffer.
+ *
+ * @param irc: IRC client.
+ *
+ * @return: Pointer to a new message, or NULL if there's no message yet.
+ */
+irc_message_t *irc_next_message(irc_t *irc) {
+  char *cr_index;
+
+  int current_size = strlen(irc->buffer);
+  int read = sock_receive(irc->socket_fd, irc->buffer+current_size, BUFFER_SIZE - current_size - 1);
+  // Commands are delimited by newline symbol.
+  cr_index = strchr(irc->buffer, '\n');
+
+  if (cr_index == NULL) {
+    return NULL;
+  }
+
+  return process_buffer(irc, cr_index);
+}
+
 /**
  * Disconnects the IRC client and frees the memory occupied by it.
  *
@@ -186,6 +217,21 @@ irc_message_t *irc_next_message(irc_t *irc) {
 void irc_free(irc_t *irc) {
   close(irc->socket_fd);
   free(irc);
+}
+
+/**
+ * Returns file descriptor for given IRC client.
+ *
+ * @param irc: IRC client.
+ *
+ * @return: File descriptor of IRC socket, or -1 if client is not connected. 
+ **/
+int irc_get_fd(irc_t *irc) {
+  if (irc->connected) {
+    return irc->socket_fd;
+  } else {
+    return -1;
+  }
 }
 
 /**

@@ -23,6 +23,17 @@ int sock_connect(char *host, int port);
 int sock_receive(int socket, char *data, short size);
 
 /**
+ * Reads a portion of data from a socket while blocking the caller thread until some amount of data is read.
+ *
+ * @param socket: Socket's file descriptor.
+ * @param data: A byte buffer to read into.
+ * @param size: Buffer's size.
+ *
+ * @return: Number of bytes read, or -1 in case of an error.
+ **/
+int sock_block_receive(int socket, char *data, short size);
+
+/**
  * Sends data into a socket.
  *
  * @param socket: Socket's file descriptor.

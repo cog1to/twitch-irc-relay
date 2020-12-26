@@ -50,7 +50,7 @@ int irc_command(irc_t *irc, const char *fmt, ...);
  *
  * @return: Number of bytes sent, if sending is successfull, -1 otherwise.
  */
-int irc_command_literal(irc_t *irc, char *str);
+int irc_send_literal(irc_t *irc, char *str);
 
 /**
  * Waits for the next message from IRC connection. Block the thread while doing so.
@@ -58,6 +58,15 @@ int irc_command_literal(irc_t *irc, char *str);
  * @param irc: IRC client.
  *
  * @return: Pointer to a new message, or NULL in case of an error.
+ */
+irc_message_t *irc_wait_for_next_message(irc_t *irc);
+
+/**
+ * Reads new data from IRC connection and checks if there's a new message ready in the buffer.
+ *
+ * @param irc: IRC client.
+ *
+ * @return: Pointer to a new message, or NULL if there's no message yet.
  */
 irc_message_t *irc_next_message(irc_t *irc);
 
@@ -74,5 +83,14 @@ void irc_free(irc_t *irc);
  * @param message: Message to deallocate.
  **/
 void irc_message_free(irc_message_t *message);
+
+/**
+ * Returns file descriptor for given IRC client.
+ *
+ * @param irc: IRC client.
+ *
+ * @return: File descriptor of IRC socket, or -1 if client is not connected. 
+ **/
+int irc_get_fd(irc_t *irc);
 
 #endif

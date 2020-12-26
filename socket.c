@@ -41,6 +41,12 @@ int sock_connect(char *host, int port) {
 
 int sock_receive(int socket, char *data, short size) {
   int return_value = -1;
+  return_value = recv(socket, data, size, MSG_DONTWAIT);
+  return return_value;
+}
+
+int sock_block_receive(int socket, char *data, short size) {
+  int return_value = -1;
   struct timeval tv;
   tv.tv_sec = 20;
   tv.tv_usec = 0;
