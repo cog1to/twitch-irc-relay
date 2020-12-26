@@ -9,6 +9,7 @@
 #include "irc.h"
 
 #define BUFFER_SIZE 2048
+#define MESSAGE_SIZE 1024
 
 /* IRC client instance */
 struct irc_t {
@@ -54,10 +55,10 @@ int irc_is_connected(irc_t *irc) {
 int irc_command(irc_t *irc, const char *fmt, ...) {
   // Pasted from irc.c
   va_list vl;
-  char outb[1024], *outp = outb;
+  char outb[MESSAGE_SIZE], *outp = outb;
 
   va_start(vl, fmt);
-  int n = vsnprintf(outp, 1022, fmt, vl);
+  int n = vsnprintf(outp, MESSAGE_SIZE - 2, fmt, vl);
   va_end(vl);
   outp += n;
   *outp++ = '\r';
