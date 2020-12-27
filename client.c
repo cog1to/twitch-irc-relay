@@ -7,9 +7,24 @@
 #include <sys/stat.h>
 #include <unistd.h>
 #include <fcntl.h>
+#include <signal.h>
 
 #include "socket.h"
 #include "irc.h"
+
+/** Signal handling **/
+
+/* Indicates that program should stop and clean up. */
+static volatile int terminate = 0;
+
+/**
+ * Process signal handler.
+ *
+ * @param signal: Received signal.
+ **/
+static void signal_handler(int signal) {
+  terminate = 1;
+}
 
 /** Private **/
 
@@ -41,12 +56,12 @@ irc_t *do_connect(char *server, int port, char *user, char *password, char *chan
  *
  * @param message: Message to print.
  **/
-void outputMessage(irc_message_t *message);
+void output_message(irc_message_t *message);
 
 /**
  * Prints out usage info to STDERR.
  **/
-void printUsage();
+void print_usage();
 
 /**
  * Reads a line from given file descriptor.
@@ -57,7 +72,14 @@ void printUsage();
  *
  * @return: Number of bytes read.
  **/
-int readLine(char *buffer, int size, int fd);
+int read_line(char *buffer, int size, int fd);
+
+/**
+ * Sets up signal handling.
+ *
+ * @param sigset: Signal set to modify.
+ */
+void setup_signals(sigset_t *sigset);
 
 /** Constants **/
 
@@ -74,7 +96,7 @@ int main(int argc, char **argv) {
 
   char *user, *password, *channel;
   if (argc < 4) {
-    printUsage();
+    print_usage();
     exit(0);
   }
 
@@ -91,7 +113,6 @@ int main(int argc, char **argv) {
   }
 
   // Message buffer.
-  unsigned int connected = 1;
   irc_message_t *message = NULL;
 
   printf("DEBUG :Opening a FIFO\n");
@@ -108,10 +129,14 @@ int main(int argc, char **argv) {
   // We want to wait for either FIFO input or socket data.
   fd_set readfds;
 
+  // Add signal interruptors.
+  sigset_t orig_mask;
+  setup_signals(&orig_mask);
+
   printf("DEBUG :Entering the main loop\n");
 
-  // Enter a loop TODO: [until SIGKILL]
-  while (connected) {
+  // Main loop (will interrupt on SIGTERM or SIGINT (CTRL+C))
+  while (terminate == 0) {
     FD_ZERO(&readfds);
     FD_SET(irc_get_fd(irc), &readfds);
     FD_SET(input_fd, &readfds);
@@ -121,10 +146,16 @@ int main(int argc, char **argv) {
       maxfd = input_fd;
     }
 
-    int activity = select(maxfd + 1, &readfds, NULL, NULL, NULL);
+    int activity = pselect(maxfd + 1, &readfds, NULL, NULL, NULL, &orig_mask);
+
+    if (terminate) {
+      printf("DEBUG: Exiting\n");
+      break;
+    }
+
     if (FD_ISSET(input_fd, &readfds)) {
       memset(command, 0, INPUT_BUFFER_SIZE);
-      if ((readLine(command, sizeof(command), input_fd)) != -1) {
+      if ((read_line(command, sizeof(command), input_fd)) != -1) {
         irc_command(irc, "%s\n", command);
       }
     }
@@ -133,6 +164,7 @@ int main(int argc, char **argv) {
       do {
         message = irc_next_message(irc);
         if (message == NULL) {
+          // TODO: Test reconnect. Doesn't seem to work right now.
           if (irc_is_connected(irc) == 0) {
             irc_free(irc);
             irc_t *irc = do_connect(server, port, user, password, channel);
@@ -145,7 +177,7 @@ int main(int argc, char **argv) {
           // if it's PRIVMSG to channel, send it to STDOUT
           // if it's anything else, ignore
           if (strcmp(message->command, "PRIVMSG") == 0) {
-            outputMessage(message);
+            output_message(message);
           } else if (strcmp(message->command, "PING") == 0) {
             irc_command(irc, "PONG %s", user);
           } else {
@@ -168,6 +200,7 @@ int main(int argc, char **argv) {
   // Close the streams.
   fprintf(stdout, "%d", EOF);
   close(input_fd);
+  remove(FIFO_PATH);
 
   // Exit without errors.
   return 0;
@@ -239,7 +272,7 @@ irc_t *do_connect(char *server, int port, char *user, char *password, char *chan
   return irc;
 }
 
-void outputMessage(irc_message_t *message) {
+void output_message(irc_message_t *message) {
   if (message->sender == NULL || message->tags == NULL || message->message == NULL) {
     return;
   }
@@ -250,13 +283,13 @@ void outputMessage(irc_message_t *message) {
   fprintf(stdout, "\t%s\n", message->message);
 }
 
-void printUsage() {
+void print_usage() {
   fprintf(stderr,
       "Usage: client <user> <password> <channel>\n"
   );
 }
 
-int readLine(char *buffer, int size, int fd) {
+int read_line(char *buffer, int size, int fd) {
   char c;
   int counter = 0;
   while ((read(fd, &c, 1) != 0) && counter < size) {
@@ -268,3 +301,28 @@ int readLine(char *buffer, int size, int fd) {
   return counter;
 }
 
+void setup_signals(sigset_t *sigset) {
+  // Setup signal interrupts.
+  sigset_t mask;
+  struct sigaction act;
+
+  memset(&act, 0, sizeof(act));
+  act.sa_handler = signal_handler;
+  if (sigaction(SIGTERM, &act, 0)) {
+    perror("Failed to setup SIGTERM listener.");
+    exit(1);
+  }
+  if (sigaction(SIGINT, &act, 0)) {
+    perror("Failed to setup SIGINT listener.");
+    exit(1);
+  }
+
+  sigemptyset (&mask);
+  sigaddset (&mask, SIGTERM);
+  sigaddset (&mask, SIGINT);
+
+  if (sigprocmask(SIG_BLOCK, &mask, sigset) < 0) {
+    perror ("Failed to sigprocmask");
+    exit(1);
+  }
+}
