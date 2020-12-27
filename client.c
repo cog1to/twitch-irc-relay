@@ -84,7 +84,7 @@ void setup_signals(sigset_t *sigset);
 /** Constants **/
 
 /* Input data path.  */
-char const * const FIFO_PATH = "/tmp/irc_client";
+char const * const FIFO_PATH = "/tmp/twitch-bot";
 /* Input message buffer size. */
 int const INPUT_BUFFER_SIZE = 1024;
 
@@ -181,7 +181,7 @@ int main(int argc, char **argv) {
           } else if (strcmp(message->command, "PING") == 0) {
             irc_command(irc, "PONG %s", user);
           } else {
-            fprintf(stdout, "%s: %s - %s\n", message->sender, message->command, message->message);
+            //fprintf(stdout, "%s: %s - %s\n", message->sender, message->command, message->message);
             // Do nothing for now.
           }
 
