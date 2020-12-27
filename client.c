@@ -11,6 +11,15 @@
 
 #include "socket.h"
 #include "irc.h"
+#include "commands/list.h"
+
+/** Commands **/
+
+COMMAND(hi)
+
+void register_commands() {
+  REGISTER(hi)
+}
 
 /** Signal handling **/
 
@@ -104,6 +113,9 @@ int main(int argc, char **argv) {
   password = argv[2];
   channel = argv[3];
 
+  // Register commands.
+  register_commands();
+
   printf("DEBUG :Connecting to IRC\n");
 
   // Connect.
@@ -178,6 +190,7 @@ int main(int argc, char **argv) {
           // if it's anything else, ignore
           if (strcmp(message->command, "PRIVMSG") == 0) {
             output_message(message);
+            command_handle_message(irc, message);
           } else if (strcmp(message->command, "PING") == 0) {
             irc_command(irc, "PONG %s", user);
           } else {

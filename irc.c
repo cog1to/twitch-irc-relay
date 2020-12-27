@@ -85,7 +85,7 @@ irc_message_t *process_buffer(irc_t *irc, char *cr_index) {
     }
 
     // MESSAGE
-    token = strsep(&pointer, "\0");
+    token = strsep(&pointer, "\r");
     if (token != NULL) {
       char *trimmed = token;
       if (trimmed[0] == ':') {
