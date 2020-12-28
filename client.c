@@ -16,9 +16,11 @@
 /** Commands **/
 
 COMMAND(hi)
+COMMAND(trnm)
 
 void register_commands() {
   REGISTER(hi)
+  REGISTER(trnm)
 }
 
 /** Signal handling **/
