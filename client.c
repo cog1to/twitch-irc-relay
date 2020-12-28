@@ -116,7 +116,7 @@ int main(int argc, char **argv) {
   // Register commands.
   register_commands();
 
-  printf("DEBUG :Connecting to IRC\n");
+  printf("DEBUG: Connecting to IRC\n");
 
   // Connect.
   irc_t *irc = do_connect(server, port, user, password, channel);
@@ -127,12 +127,12 @@ int main(int argc, char **argv) {
   // Message buffer.
   irc_message_t *message = NULL;
 
-  printf("DEBUG :Opening a FIFO\n");
+  printf("DEBUG: Opening a FIFO\n");
 
   // Input.
   int error = mkfifo(FIFO_PATH, S_IRUSR | S_IWUSR);
   if (error != 0) {
-    perror("Failed to create a FIFO");
+    perror("DEBUG: Failed to create a FIFO");
     exit(-1);
   }
   int input_fd = open(FIFO_PATH, O_RDWR);
@@ -145,7 +145,7 @@ int main(int argc, char **argv) {
   sigset_t orig_mask;
   setup_signals(&orig_mask);
 
-  printf("DEBUG :Entering the main loop\n");
+  printf("DEBUG: Entering the main loop\n");
 
   // Main loop (will interrupt on SIGTERM or SIGINT (CTRL+C))
   while (terminate == 0) {
@@ -159,6 +159,10 @@ int main(int argc, char **argv) {
     }
 
     int activity = pselect(maxfd + 1, &readfds, NULL, NULL, NULL, &orig_mask);
+    if (activity == -1) {
+      perror("DEBUG: Error while waiting for the input");
+      break;
+    }
 
     if (terminate) {
       printf("DEBUG: Exiting\n");
@@ -227,7 +231,7 @@ irc_message_t *get_next_message(irc_t *irc) {
 irc_message_t *wait_for_next_message(irc_t *irc) {
   irc_message_t *message = irc_wait_for_next_message(irc);
   if (message == NULL) {
-    perror("Failed to wait for the next message.");
+    perror("DEBUG: Failed to wait for the next message.");
     exit(-1);
   }
   return message;
@@ -237,14 +241,14 @@ irc_t *do_connect(char *server, int port, char *user, char *password, char *chan
   // Connect to socket.
   int socket_fd = sock_connect(server, port);
   if (socket_fd == -1) {
-    perror("Failed to connect to server");
+    perror("DEBUG: Failed to connect to server");
     return NULL;
   }
 
   // Initialize IRC.
   irc_t *irc = irc_init(socket_fd);
   if (irc == NULL) {
-    perror("Failed to create IRC client");
+    perror("DEBUG: Failed to create IRC client");
     return NULL;
   }
 
@@ -322,11 +326,11 @@ void setup_signals(sigset_t *sigset) {
   memset(&act, 0, sizeof(act));
   act.sa_handler = signal_handler;
   if (sigaction(SIGTERM, &act, 0)) {
-    perror("Failed to setup SIGTERM listener.");
+    perror("DEBUG: Failed to setup SIGTERM listener.");
     exit(1);
   }
   if (sigaction(SIGINT, &act, 0)) {
-    perror("Failed to setup SIGINT listener.");
+    perror("DEBUG: Failed to setup SIGINT listener.");
     exit(1);
   }
 
@@ -335,7 +339,7 @@ void setup_signals(sigset_t *sigset) {
   sigaddset (&mask, SIGINT);
 
   if (sigprocmask(SIG_BLOCK, &mask, sigset) < 0) {
-    perror ("Failed to sigprocmask");
+    perror ("DEBUG: Failed to sigprocmask");
     exit(1);
   }
 }

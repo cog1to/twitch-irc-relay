@@ -164,12 +164,10 @@ int irc_command(irc_t *irc, const char *fmt, ...) {
 }
 
 int irc_send_literal(irc_t *irc, char *str) {
-  int sent = sock_send(irc->socket_fd, str, strlen(str));
+  return sock_send(irc->socket_fd, str, strlen(str));
 }
 
 irc_message_t *irc_wait_for_next_message(irc_t *irc) {
-  char message_str[BUFFER_SIZE] = { 0 };
-
   // Commands are delimited by newline symbol.
   char *cr_index = strchr(irc->buffer, '\n');
 
@@ -179,8 +177,12 @@ irc_message_t *irc_wait_for_next_message(irc_t *irc) {
     FD_SET(irc->socket_fd, &readfds);
     int activity = select(irc->socket_fd + 1, &readfds, NULL, NULL, NULL);
 
+    if (activity == -1) {
+      return NULL;
+    }
+
     int current_size = strlen(irc->buffer);
-    int read = sock_block_receive(irc->socket_fd, irc->buffer+current_size, BUFFER_SIZE - current_size - 1);
+    sock_block_receive(irc->socket_fd, irc->buffer+current_size, BUFFER_SIZE - current_size - 1);
     cr_index = strchr(irc->buffer, '\n');
   }
 
@@ -198,7 +200,7 @@ irc_message_t *irc_next_message(irc_t *irc) {
   char *cr_index;
 
   int current_size = strlen(irc->buffer);
-  int read = sock_receive(irc->socket_fd, irc->buffer+current_size, BUFFER_SIZE - current_size - 1);
+  sock_receive(irc->socket_fd, irc->buffer+current_size, BUFFER_SIZE - current_size - 1);
   // Commands are delimited by newline symbol.
   cr_index = strchr(irc->buffer, '\n');
 

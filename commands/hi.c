@@ -17,5 +17,5 @@ void hi_handle(irc_t *irc, irc_message_t *message) {
   char display_name[128] =  { 0 };
   tags_get_tag(message->tags, "display-name", display_name, sizeof(display_name));
 
-  irc_command(irc, "PRIVMSG %s :hi, %s", message->recipient, display_name);
+  irc_command(irc, "PRIVMSG %s :hi, @%s", message->recipient, display_name);
 }

@@ -36,11 +36,16 @@ static command_list_t commands = { 0 };
  * @return: TRUE if at least one command handler matched the message, FALSE otherwise.
  **/
 int command_handle_message(irc_t *irc, irc_message_t *message) {
+  int found = 0;
+
   for (int idx = 0; idx < commands.size; idx++) {
     if (commands.commands[idx]->matcher(message) == 1) {
       commands.commands[idx]->handler(irc, message);
+      found = 1;
     }
   }
+
+  return found;
 }
 
 /**

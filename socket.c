@@ -60,5 +60,5 @@ int sock_block_receive(int socket, char *data, short size) {
 }
 
 int sock_send(int socket, char *data, short size) {
-  send(socket, data, size, 0);
+  return send(socket, data, size, 0);
 }

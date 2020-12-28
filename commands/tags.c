@@ -40,7 +40,8 @@ int min_int(int a, int b) {
  * @param output: String pointer to hold the tag value.
  * @param size: Max string length of the output.
  *
- * @return: Length of the value string, if the tag was found, 0 otherwise.
+ * @return: Length of the value string, if the tag was found, -1 otherwise.
+ * 0 is a valid length.
  **/
 int tags_get_tag(char *input, char *tag, char *output, int size) {
   int length = strlen(input), value_length = 0;
@@ -65,7 +66,7 @@ int tags_get_tag(char *input, char *tag, char *output, int size) {
   }
 
   free(string);
-  return 0;
+  return -1;
 }
 
 /**
@@ -81,8 +82,11 @@ int tags_tag_contains(char *input, char *tag, char *substring) {
   char tag_value[128];
 
   int tag_value_length = tags_get_tag(input, tag, tag_value, 128);
-  char *substr = strstr(tag_value, substring);
+  if (tag_value_length < 0) {
+    return 0;
+  }
 
+  char *substr = strstr(tag_value, substring);
   if (substr != NULL) {
     return 1;
   } else {
