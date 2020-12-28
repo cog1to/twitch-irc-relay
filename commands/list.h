@@ -24,8 +24,17 @@ void register_command_handler(
   void (*handler)(irc_t *, irc_message_t *)
 );
 
+/** 
+ * Helper macro to register a new command. Takes command name and expects its functions to
+ * have names commandname__match and commandname_handle.
+ **/
 #define REGISTER(command) register_command_handler(command ## _match, command ## _handle);
 
+/**
+ * Helper macro to export command's functions to a source file as `extern` functions. 
+ * Takes command name and expects its functions to have names commandname__match 
+ * and commandname_handle.
+ */
 #define COMMAND(command) \
   extern int command ## _match(irc_message_t *); \
   extern void command ## _handle(irc_t *, irc_message_t *);
