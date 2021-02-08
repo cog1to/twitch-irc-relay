@@ -3,7 +3,9 @@
 #include <stdarg.h>
 #include <stdio.h>
 #include <sys/time.h>
+#include <sys/socket.h>
 #include <unistd.h>
+#include <errno.h>
 
 #include "socket.h"
 #include "irc.h"
@@ -200,7 +202,17 @@ irc_message_t *irc_next_message(irc_t *irc) {
   char *cr_index;
 
   int current_size = strlen(irc->buffer);
-  sock_receive(irc->socket_fd, irc->buffer+current_size, BUFFER_SIZE - current_size - 1);
+  int readbytes = sock_receive(irc->socket_fd, irc->buffer+current_size, BUFFER_SIZE - current_size - 1);
+
+  if (readbytes <= 0) {
+    if (readbytes == -1 && (errno == EAGAIN || errno == EWOULDBLOCK)) {
+      return NULL;
+    } else if (errno != 0) {
+      irc->connected = 0;
+      return NULL;
+    }
+  }
+
   // Commands are delimited by newline symbol.
   cr_index = strchr(irc->buffer, '\n');
 
@@ -217,6 +229,7 @@ irc_message_t *irc_next_message(irc_t *irc) {
  * @param irc: IRC client to deallocate.
  **/
 void irc_free(irc_t *irc) {
+  shutdown(irc->socket_fd, SHUT_WR);
   close(irc->socket_fd);
   free(irc);
 }

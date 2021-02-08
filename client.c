@@ -150,7 +150,19 @@ int main(int argc, char **argv) {
   printf("DEBUG: Entering the main loop\n");
 
   // Main loop (will interrupt on SIGTERM or SIGINT (CTRL+C))
+  int reconnect = 0;
   while (terminate == 0) {
+    // TODO: Test reconnect. Not sure it works properly...
+    if (reconnect) {
+      printf("DEBUG: Reconnecting\n");
+      irc_free(irc);
+      irc_t *irc = do_connect(server, port, user, password, channel);
+      if (irc == NULL) {
+        break;
+      }
+      reconnect = 0;
+    }
+
     FD_ZERO(&readfds);
     FD_SET(irc_get_fd(irc), &readfds);
     FD_SET(input_fd, &readfds);
@@ -182,13 +194,9 @@ int main(int argc, char **argv) {
       do {
         message = irc_next_message(irc);
         if (message == NULL) {
-          // TODO: Test reconnect. Doesn't seem to work right now.
           if (irc_is_connected(irc) == 0) {
-            irc_free(irc);
-            irc_t *irc = do_connect(server, port, user, password, channel);
-            if (irc == NULL) {
-              break;
-            }
+            reconnect = 1;
+            break;
           }
         } else {
           // Parse the message
@@ -200,8 +208,8 @@ int main(int argc, char **argv) {
           } else if (strcmp(message->command, "PING") == 0) {
             irc_command(irc, "PONG %s", user);
           } else {
-            //fprintf(stdout, "%s: %s - %s\n", message->sender, message->command, message->message);
             // Do nothing for now.
+            // fprintf(stdout, "%s: %s - %s\n", message->sender, message->command, message->message);
           }
 
           // Free message memory.
