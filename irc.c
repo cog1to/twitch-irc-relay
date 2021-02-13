@@ -3,7 +3,6 @@
 #include <stdarg.h>
 #include <stdio.h>
 #include <sys/time.h>
-#include <sys/socket.h>
 #include <unistd.h>
 #include <errno.h>
 
@@ -204,23 +203,20 @@ irc_message_t *irc_next_message(irc_t *irc) {
   int current_size = strlen(irc->buffer);
   int readbytes = sock_receive(irc->socket_fd, irc->buffer+current_size, BUFFER_SIZE - current_size - 1);
 
-  if (readbytes <= 0) {
-    if (readbytes == -1 && (errno == EAGAIN || errno == EWOULDBLOCK)) {
-      return NULL;
-    } else if (errno != 0) {
-      irc->connected = 0;
+  if (readbytes >= 0 || (readbytes == -1 && (errno == EAGAIN || errno == EWOULDBLOCK))) {
+    // Commands are delimited by newline symbol.
+    cr_index = strchr(irc->buffer, '\n');
+
+    if (cr_index == NULL) {
       return NULL;
     }
+
+    return process_buffer(irc, cr_index);
+  } else if (readbytes == -1) {
+    irc->connected = 0;
   }
 
-  // Commands are delimited by newline symbol.
-  cr_index = strchr(irc->buffer, '\n');
-
-  if (cr_index == NULL) {
-    return NULL;
-  }
-
-  return process_buffer(irc, cr_index);
+  return NULL;
 }
 
 /**
@@ -229,7 +225,6 @@ irc_message_t *irc_next_message(irc_t *irc) {
  * @param irc: IRC client to deallocate.
  **/
 void irc_free(irc_t *irc) {
-  shutdown(irc->socket_fd, SHUT_WR);
   close(irc->socket_fd);
   free(irc);
 }

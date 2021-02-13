@@ -65,9 +65,10 @@ irc_t *do_connect(char *server, int port, char *user, char *password, char *chan
 /**
  * Prints the message to stdout.
  *
+ * @param file: File handle to output into.
  * @param message: Message to print.
  **/
-void output_message(irc_message_t *message);
+void output_message(int file, irc_message_t *message);
 
 /**
  * Prints out usage info to STDERR.
@@ -95,7 +96,8 @@ void setup_signals(sigset_t *sigset);
 /** Constants **/
 
 /* Input data path.  */
-char const * const FIFO_PATH = "/tmp/twitch-bot";
+char const * const IN_FIFO_PATH = "/tmp/twitch-bot-in";
+char const * const OUT_FIFO_PATH = "/tmp/twitch-bot-out";
 /* Input message buffer size. */
 int const INPUT_BUFFER_SIZE = 1024;
 
@@ -132,13 +134,25 @@ int main(int argc, char **argv) {
   printf("DEBUG: Opening a FIFO\n");
 
   // Input.
-  int error = mkfifo(FIFO_PATH, S_IRUSR | S_IWUSR);
+  int error = mkfifo(IN_FIFO_PATH, S_IRUSR | S_IWUSR);
   if (error != 0) {
     perror("DEBUG: Failed to create a FIFO");
     exit(-1);
   }
-  int input_fd = open(FIFO_PATH, O_RDWR);
+
+  // Input feed.
+  int input_fd = open(IN_FIFO_PATH, O_RDWR);
   char command[INPUT_BUFFER_SIZE];
+
+  // Output.
+  error = mkfifo(OUT_FIFO_PATH, S_IRUSR | S_IWUSR);
+  if (error != 0) {
+    perror("DEBUG: Failed to create a FIFO");
+    exit(-1);
+  }
+
+  // Output feed.
+  int output_fd = open(OUT_FIFO_PATH, O_RDWR);
 
   // We want to wait for either FIFO input or socket data.
   fd_set readfds;
@@ -184,6 +198,7 @@ int main(int argc, char **argv) {
     }
 
     if (FD_ISSET(input_fd, &readfds)) {
+      fprintf(stdout, "DEBUG: Incoming message\n");
       memset(command, 0, INPUT_BUFFER_SIZE);
       if ((read_line(command, sizeof(command), input_fd)) != -1) {
         irc_command(irc, "%s\n", command);
@@ -191,23 +206,27 @@ int main(int argc, char **argv) {
     }
 
     if (FD_ISSET(irc_get_fd(irc), &readfds)) {
+      fprintf(stdout, "DEBUG: Got some data in the socket\n");
       do {
         message = irc_next_message(irc);
         if (message == NULL) {
+          fprintf(stdout, "DEBUG: No more message\n");
           if (irc_is_connected(irc) == 0) {
             reconnect = 1;
             break;
           }
         } else {
+          fprintf(stdout, "DEBUG: Got new message\n");
           // Parse the message
           // if it's PRIVMSG to channel, send it to STDOUT
           // if it's anything else, ignore
           if (strcmp(message->command, "PRIVMSG") == 0) {
-            output_message(message);
+            output_message(output_fd, message);
             command_handle_message(irc, message);
           } else if (strcmp(message->command, "PING") == 0) {
             irc_command(irc, "PONG %s", user);
           } else {
+            output_message(output_fd, message);
             // Do nothing for now.
             // fprintf(stdout, "%s: %s - %s\n", message->sender, message->command, message->message);
           }
@@ -227,7 +246,9 @@ int main(int argc, char **argv) {
   // Close the streams.
   fprintf(stdout, "%d", EOF);
   close(input_fd);
-  remove(FIFO_PATH);
+  close(output_fd);
+  remove(IN_FIFO_PATH);
+  remove(OUT_FIFO_PATH);
 
   // Exit without errors.
   return 0;
@@ -299,15 +320,19 @@ irc_t *do_connect(char *server, int port, char *user, char *password, char *chan
   return irc;
 }
 
-void output_message(irc_message_t *message) {
+void output_message(int file, irc_message_t *message) {
+  char buffer[1024] = { 0 };
+
   if (message->sender == NULL || message->tags == NULL || message->message == NULL) {
     return;
   }
 
-  fprintf(stdout, "%s\t%s", message->tags, message->sender);
+  int len = sprintf(buffer, "%s\t%s", message->tags, message->sender);
   if (message->command != NULL)
-    fprintf(stdout, "\t%s", message->command);
-  fprintf(stdout, "\t%s\n", message->message);
+    len = len + sprintf(buffer+len, "\t%s", message->command);
+  sprintf(buffer+len, "\t%s\n", message->message);
+
+  write(file, buffer, strlen(buffer));
 }
 
 void print_usage() {
