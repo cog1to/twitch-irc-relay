@@ -94,6 +94,16 @@ int read_line(char *buffer, int size, int fd);
  */
 void setup_signals(sigset_t *sigset);
 
+/**
+ * Quote-escapes input string and puts it into output string.
+ * If resulting string is larger than output, the string is truncated.
+ *
+ * @param in: Input string.
+ * @param out: Output string.
+ * @param outsize: Byte-length of the output buffer.
+ */
+void string_quote_escape(char *in, char *out, int outsize);
+
 /** Constants **/
 
 /* Input data path.  */
@@ -252,6 +262,8 @@ int main(int argc, char **argv) {
   return 0;
 }
 
+/** Helpers **/
+
 irc_message_t *get_next_message(irc_t *irc) {
   irc_message_t *message = irc_next_message(irc);
   return message;
@@ -323,15 +335,19 @@ irc_t *do_connect(char *server, int port, char *user, char *password, char *chan
 
 void output_message(int file, irc_message_t *message) {
   char buffer[1024] = { 0 };
+  char escaped_message[1024] = { 0 };
 
   if (message->sender == NULL || message->tags == NULL || message->message == NULL) {
     return;
   }
 
-  int len = sprintf(buffer, "%s\t%s", message->tags, message->sender);
+  int len = sprintf(buffer, "{\"tags\":\"%s\",\"sender\":\"%s\"", message->tags, message->sender);
   if (message->command != NULL)
-    len = len + sprintf(buffer+len, "\t%s", message->command);
-  sprintf(buffer+len, "\t%s\n", message->message);
+    len = len + sprintf(buffer+len, ",\"command\":\"%s\"", message->command);
+
+  // Quote-escape message first, then append it to the output.
+  string_quote_escape(message->message, escaped_message, 1010 - len);
+  sprintf(buffer+len, ",\"message\":\"%s\"}\n", escaped_message);
 
   write(file, buffer, strlen(buffer));
 }
@@ -378,4 +394,20 @@ void setup_signals(sigset_t *sigset) {
     perror ("Failed to sigprocmask");
     exit(1);
   }
+}
+
+void string_quote_escape(char *in, char *out, int outsize) {
+  int out_idx = 0;
+  for (int idx = 0; idx < strlen(in) && out_idx < outsize - 1; idx++) {
+    if (in[idx] == '"') {
+      out[out_idx++] = '\\';
+    }
+
+    if (out_idx < (outsize - 1)) {
+      out[out_idx] = in[idx];
+      out_idx += 1;
+    }
+  }
+
+  out[out_idx] = '\0';
 }
