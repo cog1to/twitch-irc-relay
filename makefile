@@ -6,7 +6,7 @@ commands: force
 	$(MAKE) -C commands
 
 .o: socket.c irc.c client.c
-	gcc -c socket.c irc.c client.c
+	gcc -c socket.c irc.c client.c debug.c
 
 client: commands .o
 	gcc -o $(OUTPUT) *.o commands/*.o

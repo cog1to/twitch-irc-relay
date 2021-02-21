@@ -12,6 +12,7 @@
 #include "socket.h"
 #include "irc.h"
 #include "commands/list.h"
+#include "debug.h"
 
 /** Commands **/
 
@@ -120,7 +121,7 @@ int main(int argc, char **argv) {
   // Register commands.
   register_commands();
 
-  printf("DEBUG: Connecting to IRC\n");
+  LOG(LOG_LEVEL_DEBUG, "DEBUG: Connecting to IRC\n");
 
   // Connect.
   irc_t *irc = do_connect(server, port, user, password, channel);
@@ -131,12 +132,12 @@ int main(int argc, char **argv) {
   // Message buffer.
   irc_message_t *message = NULL;
 
-  printf("DEBUG: Opening a FIFO\n");
+  LOG(LOG_LEVEL_DEBUG, "DEBUG: Opening a FIFO\n");
 
   // Input.
   int error = mkfifo(IN_FIFO_PATH, S_IRUSR | S_IWUSR);
   if (error != 0) {
-    perror("DEBUG: Failed to create a FIFO");
+    perror("Failed to create a FIFO");
     exit(-1);
   }
 
@@ -147,7 +148,7 @@ int main(int argc, char **argv) {
   // Output.
   error = mkfifo(OUT_FIFO_PATH, S_IRUSR | S_IWUSR);
   if (error != 0) {
-    perror("DEBUG: Failed to create a FIFO");
+    perror("Failed to create a FIFO");
     exit(-1);
   }
 
@@ -161,14 +162,14 @@ int main(int argc, char **argv) {
   sigset_t orig_mask;
   setup_signals(&orig_mask);
 
-  printf("DEBUG: Entering the main loop\n");
+  LOG(LOG_LEVEL_DEBUG, "DEBUG: Entering the main loop\n");
 
   // Main loop (will interrupt on SIGTERM or SIGINT (CTRL+C))
   int reconnect = 0;
   while (terminate == 0) {
     // TODO: Test reconnect. Not sure it works properly...
     if (reconnect) {
-      printf("DEBUG: Reconnecting\n");
+      LOG(LOG_LEVEL_DEBUG, "DEBUG: Reconnecting\n");
       irc_free(irc);
       irc_t *irc = do_connect(server, port, user, password, channel);
       if (irc == NULL) {
@@ -188,17 +189,17 @@ int main(int argc, char **argv) {
 
     int activity = pselect(maxfd + 1, &readfds, NULL, NULL, NULL, &orig_mask);
     if (activity == -1) {
-      perror("DEBUG: Error while waiting for the input");
+      perror("Error while waiting for the input");
       break;
     }
 
     if (terminate) {
-      printf("DEBUG: Exiting\n");
+      LOG(LOG_LEVEL_DEBUG, "DEBUG: Exiting\n");
       break;
     }
 
     if (FD_ISSET(input_fd, &readfds)) {
-      fprintf(stdout, "DEBUG: Incoming message\n");
+      LOG(LOG_LEVEL_DEBUG, "DEBUG: Incoming message\n");
       memset(command, 0, INPUT_BUFFER_SIZE);
       if ((read_line(command, sizeof(command), input_fd)) != -1) {
         irc_command(irc, "%s\n", command);
@@ -206,17 +207,17 @@ int main(int argc, char **argv) {
     }
 
     if (FD_ISSET(irc_get_fd(irc), &readfds)) {
-      fprintf(stdout, "DEBUG: Got some data in the socket\n");
+      LOG(LOG_LEVEL_DEBUG, "DEBUG: Got some data in the socket\n");
       do {
         message = irc_next_message(irc);
         if (message == NULL) {
-          fprintf(stdout, "DEBUG: No more message\n");
+          LOG(LOG_LEVEL_DEBUG, "DEBUG: No more message\n");
           if (irc_is_connected(irc) == 0) {
             reconnect = 1;
             break;
           }
         } else {
-          fprintf(stdout, "DEBUG: Got new message\n");
+          LOG(LOG_LEVEL_DEBUG, "DEBUG: Got new message\n");
           // Parse the message
           // Ignore PING, pipe everything else to the output.
           if (strcmp(message->command, "PRIVMSG") == 0) {
@@ -259,7 +260,7 @@ irc_message_t *get_next_message(irc_t *irc) {
 irc_message_t *wait_for_next_message(irc_t *irc) {
   irc_message_t *message = irc_wait_for_next_message(irc);
   if (message == NULL) {
-    perror("DEBUG: Failed to wait for the next message.");
+    perror("Failed to wait for the next message.");
     exit(-1);
   }
   return message;
@@ -269,14 +270,14 @@ irc_t *do_connect(char *server, int port, char *user, char *password, char *chan
   // Connect to socket.
   int socket_fd = sock_connect(server, port);
   if (socket_fd == -1) {
-    perror("DEBUG: Failed to connect to server");
+    perror("Failed to connect to server");
     return NULL;
   }
 
   // Initialize IRC.
   irc_t *irc = irc_init(socket_fd);
   if (irc == NULL) {
-    perror("DEBUG: Failed to create IRC client");
+    perror("Failed to create IRC client");
     return NULL;
   }
 
@@ -287,7 +288,7 @@ irc_t *do_connect(char *server, int port, char *user, char *password, char *chan
   irc_command(irc, "PASS %s", password);
   irc_command(irc, "NICK %s", user);
 
-  fprintf(stdout, "DEBUG: Waiting for MOTD\n");
+  LOG(LOG_LEVEL_DEBUG, "DEBUG: Waiting for MOTD\n");
   for (int found = 0; found < 1; ) {
     message = wait_for_next_message(irc);
     if (strcmp(message->command, "376") == 0) {
@@ -296,7 +297,7 @@ irc_t *do_connect(char *server, int port, char *user, char *password, char *chan
     irc_message_free(message);
   }
 
-  fprintf(stdout, "DEBUG: Sending CAPs\n");
+  LOG(LOG_LEVEL_DEBUG, "DEBUG: Sending CAPs\n");
   irc_command(irc, "CAP REQ :twitch.tv/tags twitch.tv/commands");
   for (int found = 0; found < 1; ) {
     message = wait_for_next_message(irc);
@@ -307,7 +308,7 @@ irc_t *do_connect(char *server, int port, char *user, char *password, char *chan
   }
 
   // Send JOIN message, wait for NICK list end response.
-  fprintf(stdout, "DEBUG: Joining the channel\n");
+  LOG(LOG_LEVEL_DEBUG, "DEBUG: Joining the channel\n");
   irc_command(irc, "JOIN #%s", channel);
   for (int joined = 0; joined < 1; ) {
     message = wait_for_next_message(irc);
@@ -361,11 +362,11 @@ void setup_signals(sigset_t *sigset) {
   memset(&act, 0, sizeof(act));
   act.sa_handler = signal_handler;
   if (sigaction(SIGTERM, &act, 0)) {
-    perror("DEBUG: Failed to setup SIGTERM listener.");
+    perror("Failed to setup SIGTERM listener.");
     exit(1);
   }
   if (sigaction(SIGINT, &act, 0)) {
-    perror("DEBUG: Failed to setup SIGINT listener.");
+    perror("Failed to setup SIGINT listener.");
     exit(1);
   }
 
@@ -374,7 +375,7 @@ void setup_signals(sigset_t *sigset) {
   sigaddset (&mask, SIGINT);
 
   if (sigprocmask(SIG_BLOCK, &mask, sigset) < 0) {
-    perror ("DEBUG: Failed to sigprocmask");
+    perror ("Failed to sigprocmask");
     exit(1);
   }
 }

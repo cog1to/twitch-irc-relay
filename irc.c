@@ -187,8 +187,6 @@ irc_message_t *irc_wait_for_next_message(irc_t *irc) {
     cr_index = strchr(irc->buffer, '\n');
   }
 
-  printf("DEBUG: buffer:\n%s\n", irc->buffer);
-
   return process_buffer(irc, cr_index);
 }
 
