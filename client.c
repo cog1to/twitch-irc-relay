@@ -218,8 +218,7 @@ int main(int argc, char **argv) {
         } else {
           fprintf(stdout, "DEBUG: Got new message\n");
           // Parse the message
-          // if it's PRIVMSG to channel, send it to STDOUT
-          // if it's anything else, ignore
+          // Ignore PING, pipe everything else to the output.
           if (strcmp(message->command, "PRIVMSG") == 0) {
             output_message(output_fd, message);
             command_handle_message(irc, message);
@@ -227,8 +226,6 @@ int main(int argc, char **argv) {
             irc_command(irc, "PONG %s", user);
           } else {
             output_message(output_fd, message);
-            // Do nothing for now.
-            // fprintf(stdout, "%s: %s - %s\n", message->sender, message->command, message->message);
           }
 
           // Free message memory.
@@ -290,6 +287,7 @@ irc_t *do_connect(char *server, int port, char *user, char *password, char *chan
   irc_command(irc, "PASS %s", password);
   irc_command(irc, "NICK %s", user);
 
+  fprintf(stdout, "DEBUG: Waiting for MOTD\n");
   for (int found = 0; found < 1; ) {
     message = wait_for_next_message(irc);
     if (strcmp(message->command, "376") == 0) {
@@ -298,6 +296,7 @@ irc_t *do_connect(char *server, int port, char *user, char *password, char *chan
     irc_message_free(message);
   }
 
+  fprintf(stdout, "DEBUG: Sending CAPs\n");
   irc_command(irc, "CAP REQ :twitch.tv/tags twitch.tv/commands");
   for (int found = 0; found < 1; ) {
     message = wait_for_next_message(irc);
@@ -308,6 +307,7 @@ irc_t *do_connect(char *server, int port, char *user, char *password, char *chan
   }
 
   // Send JOIN message, wait for NICK list end response.
+  fprintf(stdout, "DEBUG: Joining the channel\n");
   irc_command(irc, "JOIN #%s", channel);
   for (int joined = 0; joined < 1; ) {
     message = wait_for_next_message(irc);

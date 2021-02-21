@@ -78,7 +78,7 @@ irc_message_t *process_buffer(irc_t *irc, char *cr_index) {
     }
 
     // RECIPIENT
-    token = strsep(&pointer, " ");
+    token = strsep(&pointer, " \r");
     if (token != NULL) {
       message->recipient = calloc(strlen(token), sizeof(char));
       strcpy(message->recipient, token);
@@ -186,6 +186,8 @@ irc_message_t *irc_wait_for_next_message(irc_t *irc) {
     sock_block_receive(irc->socket_fd, irc->buffer+current_size, BUFFER_SIZE - current_size - 1);
     cr_index = strchr(irc->buffer, '\n');
   }
+
+  printf("DEBUG: buffer:\n%s\n", irc->buffer);
 
   return process_buffer(irc, cr_index);
 }
