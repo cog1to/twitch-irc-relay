@@ -299,11 +299,12 @@ irc_t *do_connect(char *server, int port, char *user, char *password, char *chan
   // Send NICK and PASS, wait for MOTDEND message.
   irc_command(irc, "PASS %s", password);
   irc_command(irc, "NICK %s", user);
+  irc_command(irc, "USER %s", user);
 
-  LOG(LOG_LEVEL_DEBUG, "DEBUG: Waiting for MOTD\n");
+  LOG(LOG_LEVEL_DEBUG, "DEBUG: Waiting for RPL_WELCOME\n");
   for (int found = 0; found < 1; ) {
     message = wait_for_next_message(irc);
-    if (strcmp(message->command, "376") == 0) {
+    if (strcmp(message->command, "001") == 0) {
       found = 1;
     }
     irc_message_free(message);
