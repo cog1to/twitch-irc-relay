@@ -59,6 +59,13 @@ int sock_block_receive(int socket, char *data, short size) {
   return return_value;
 }
 
+int sock_peek(int socket) {
+  int return_value = -1;
+  char buffer[4];
+  return_value = recv(socket, buffer, 4, MSG_PEEK | MSG_DONTWAIT);
+  return return_value;
+}
+
 int sock_send(int socket, char *data, short size) {
   return send(socket, data, size, 0);
 }

@@ -172,16 +172,21 @@ int main(int argc, char **argv) {
   sigset_t orig_mask;
   setup_signals(&orig_mask);
 
+  // Read timeout spec.
+  struct timespec timeout = {
+    .tv_sec = 30,
+    .tv_nsec = 0
+  };
+
   LOG(LOG_LEVEL_DEBUG, "DEBUG: Entering the main loop\n");
 
   // Main loop (will interrupt on SIGTERM or SIGINT (CTRL+C))
   int reconnect = 0;
   while (terminate == 0) {
-    // TODO: Test reconnect. Not sure it works properly...
     if (reconnect) {
       LOG(LOG_LEVEL_DEBUG, "DEBUG: Reconnecting\n");
       irc_free(irc);
-      irc_t *irc = do_connect(server, port, user, password, channel);
+      irc = do_connect(server, port, user, password, channel);
       if (irc == NULL) {
         break;
       }
@@ -197,10 +202,15 @@ int main(int argc, char **argv) {
       maxfd = input_fd;
     }
 
-    int activity = pselect(maxfd + 1, &readfds, NULL, NULL, NULL, &orig_mask);
+    timeout.tv_sec = 20;
+    timeout.tv_nsec = 0;
+
+    int activity = pselect(maxfd + 1, &readfds, NULL, NULL, &timeout, &orig_mask);
     if (activity == -1) {
       perror("Error while waiting for the input");
       break;
+    } else if (activity == 0) {
+      LOG(LOG_LEVEL_DEBUG, "DEBUG: Got pselect timeout\n");
     }
 
     if (terminate) {
@@ -222,10 +232,6 @@ int main(int argc, char **argv) {
         message = irc_next_message(irc);
         if (message == NULL) {
           LOG(LOG_LEVEL_DEBUG, "DEBUG: No more message\n");
-          if (irc_is_connected(irc) == 0) {
-            reconnect = 1;
-            break;
-          }
         } else {
           LOG(LOG_LEVEL_DEBUG, "DEBUG: Got new message\n");
           // Parse the message
@@ -243,6 +249,11 @@ int main(int argc, char **argv) {
           irc_message_free(message);
         }
       } while (message != NULL);
+    }
+
+
+    if (irc_is_connected(irc) == 0) {
+      reconnect = 1;
     }
   }
 

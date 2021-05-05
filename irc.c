@@ -234,7 +234,7 @@ void irc_free(irc_t *irc) {
  *
  * @param irc: IRC client.
  *
- * @return: File descriptor of IRC socket, or -1 if client is not connected. 
+ * @return: File descriptor of IRC socket, or -1 if client is not connected.
  **/
 int irc_get_fd(irc_t *irc) {
   if (irc->connected) {

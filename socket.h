@@ -44,4 +44,13 @@ int sock_block_receive(int socket, char *data, short size);
  **/
 int sock_send(int socket, char *data, short size);
 
+/**
+ * Peeks into the socket without destroying data.
+ *
+ * @param socket: Socket's file descriptor.
+ *
+ * @return: 0 if peek is successfull, -1 in case of an error.
+ **/
+int sock_peek(int socket);
+
 #endif
