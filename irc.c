@@ -8,6 +8,7 @@
 
 #include "socket.h"
 #include "irc.h"
+#include "debug.h"
 
 #define BUFFER_SIZE 2048
 #define MESSAGE_SIZE 1024
@@ -48,18 +49,18 @@ irc_message_t *process_buffer(irc_t *irc, char *cr_index) {
   if (strstr(pointer, "PING") != NULL) {
      token = strsep(&pointer, " ");
      message->command = calloc(strlen(token) + 1, sizeof(char));
-     strcpy(message->command, token);
+     memcpy(message->command, token, strlen(token));
 
      token = strsep(&pointer, "\0");
      message->sender = calloc(strlen(token) + 1, sizeof(char));
-     strcpy(message->sender, token);
+     memcpy(message->sender, token, strlen(token));
   } else {
     // TAGS
     if (message_str[0] == '@') {
       token = strsep(&pointer, " ");
       if (token != NULL) {
         message->tags = calloc(strlen(token) + 1, sizeof(char));
-        strcpy(message->tags, token);
+        memcpy(message->tags, token, strlen(token));
       }
     }
 
@@ -67,21 +68,21 @@ irc_message_t *process_buffer(irc_t *irc, char *cr_index) {
     token = strsep(&pointer, " ");
     if (token != NULL) {
       message->sender = calloc(strlen(token) + 1, sizeof(char));
-      strcpy(message->sender, token);
+      memcpy(message->sender, token, strlen(token));
     }
 
     // COMMAND
     token = strsep(&pointer, " ");
     if (token != NULL) {
       message->command = calloc(strlen(token) + 1, sizeof(char));
-      strcpy(message->command, token);
+      memcpy(message->command, token, strlen(token));
     }
 
     // RECIPIENT
     token = strsep(&pointer, " \r");
     if (token != NULL) {
       message->recipient = calloc(strlen(token), sizeof(char));
-      strcpy(message->recipient, token);
+      memcpy(message->recipient, token, strlen(token) - 1);
       message->recipient[strlen(token)] = '\0';
     }
 
@@ -93,7 +94,7 @@ irc_message_t *process_buffer(irc_t *irc, char *cr_index) {
         trimmed += 1;
       }
       message->message = calloc(strlen(trimmed) + 1, sizeof(char));
-      strcpy(message->message, trimmed);
+      memcpy(message->message, trimmed, strlen(trimmed));
     }
   }
 
@@ -204,6 +205,7 @@ irc_message_t *irc_next_message(irc_t *irc) {
   int readbytes = sock_receive(irc->socket_fd, irc->buffer+current_size, BUFFER_SIZE - current_size - 1);
 
   if (readbytes >= 0 || (readbytes == -1 && (errno == EAGAIN || errno == EWOULDBLOCK))) {
+    LOG(LOG_LEVEL_DEBUG, "DEBUG: buffer contents: %s\n", irc->buffer);
     // Commands are delimited by newline symbol.
     cr_index = strchr(irc->buffer, '\n');
 
@@ -213,6 +215,7 @@ irc_message_t *irc_next_message(irc_t *irc) {
 
     return process_buffer(irc, cr_index);
   } else if (readbytes == -1) {
+    LOG(LOG_LEVEL_DEBUG, "DEBUG: disconnected\n");
     irc->connected = 0;
   }
 
