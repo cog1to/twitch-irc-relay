@@ -7,6 +7,6 @@
 #define LOG_LEVEL_SILENT 9
 
 // Current log level.
-#define LOG_LEVEL LOG_LEVEL_DEBUG
+#define LOG_LEVEL LOG_LEVEL_SILENT
 
 void LOG(int level, char *fmt, ...);

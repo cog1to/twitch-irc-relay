@@ -109,16 +109,23 @@ void string_quote_escape(char *in, char *out, int outsize);
 /* Input data path.  */
 char const * const IN_FIFO_PATH = "/tmp/twitch-bot-in";
 char const * const OUT_FIFO_PATH = "/tmp/twitch-bot-out";
+
 /* Input message buffer size. */
 int const INPUT_BUFFER_SIZE = 1024;
+
+typedef enum {
+  IO_FIFO,
+  IO_STD
+} io_t;
 
 /** Main **/
 
 int main(int argc, char **argv) {
   char *server = "irc.chat.twitch.tv";
   int port = 6667;
+  io_t io_type = IO_STD;
 
-  char *user, *password, *channel;
+  char *user, *password, *channel, *io;
   if (argc < 4) {
     print_usage();
     exit(0);
@@ -127,6 +134,13 @@ int main(int argc, char **argv) {
   user = argv[1];
   password = argv[2];
   channel = argv[3];
+  
+  // IO type.
+  if (argc > 4) {
+    if (strcmp("-f", argv[4]) == 0) {
+      io_type = IO_FIFO;
+    }
+  }
 
   // Register commands.
   register_commands();
@@ -145,25 +159,29 @@ int main(int argc, char **argv) {
   LOG(LOG_LEVEL_DEBUG, "DEBUG: Opening a FIFO\n");
 
   // Input.
-  int error = mkfifo(IN_FIFO_PATH, S_IRUSR | S_IWUSR);
-  if (error != 0) {
-    perror("Failed to create a FIFO");
-    exit(-1);
-  }
-
-  // Input feed.
-  int input_fd = open(IN_FIFO_PATH, O_RDWR);
+  int input_fd = 0, output_fd = 1;
   char command[INPUT_BUFFER_SIZE];
 
-  // Output.
-  error = mkfifo(OUT_FIFO_PATH, S_IRUSR | S_IWUSR);
-  if (error != 0) {
-    perror("Failed to create a FIFO");
-    exit(-1);
-  }
+  if (io_type == IO_FIFO) {
+    int error = mkfifo(IN_FIFO_PATH, S_IRUSR | S_IWUSR);
+    if (error != 0) {
+      perror("Failed to create a FIFO");
+      exit(-1);
+    }
 
-  // Output feed.
-  int output_fd = open(OUT_FIFO_PATH, O_RDWR);
+    // Input feed.
+    input_fd = open(IN_FIFO_PATH, O_RDWR);
+
+    // Output.
+    error = mkfifo(OUT_FIFO_PATH, S_IRUSR | S_IWUSR);
+    if (error != 0) {
+      perror("Failed to create a FIFO");
+      exit(-1);
+    }
+
+    // Output feed.
+    output_fd = open(OUT_FIFO_PATH, O_RDWR);
+  }
 
   // We want to wait for either FIFO input or socket data.
   fd_set readfds;
@@ -264,10 +282,12 @@ int main(int argc, char **argv) {
 
   // Close the streams.
   fprintf(stdout, "%d", EOF);
-  close(input_fd);
-  close(output_fd);
-  remove(IN_FIFO_PATH);
-  remove(OUT_FIFO_PATH);
+  if (io_type == IO_FIFO) {
+    close(input_fd);
+    close(output_fd);
+    remove(IN_FIFO_PATH);
+    remove(OUT_FIFO_PATH);
+  }
 
   // Exit without errors.
   return 0;
@@ -366,7 +386,7 @@ void output_message(int file, irc_message_t *message) {
 
 void print_usage() {
   fprintf(stderr,
-      "Usage: client <user> <password> <channel>\n"
+      "Usage: twitch-bot <user> <password> <channel> [-f|-s]\n  -f: Use named pipes instead of STD for input and output.\n  -s: [Default] Use standard input/output pipes for input and output.\n"
   );
 }
 
