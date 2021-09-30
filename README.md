@@ -4,17 +4,19 @@ Baseline Twitch IRC chat bot in C.
 
 ## Usage
 ```
-./twitch-bot my_user_name "oauth:my_oauth_token" channel_name
+./twitch-bot my_user_name "oauth:my_oauth_token" channel_name [-f|-s]
 ```
 
 ## What it does
 
 Connects to Twitch IRC, authenticates with given user data, and joins specified channel.
 
-If everything is ok, two FIFO pipes will be created at `/tmp/twitch-bot-in|out`. 
+If .`-f` argument was provided, two FIFO pipes will be created at `/tmp/twitch-bot-in|out`. 
 The `-in` one is observed to receive commands and send them to the channel. The 
 `-out` one outputs whatever messages it receives from other users in the 
 channel.
+
+Otherwise the client will listen to `stdin` and output to `stdout`.
 
 ## Commands 
 
