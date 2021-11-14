@@ -1,13 +1,16 @@
-# Basic Twitch IRC bot
+# Twitch IRC chat relay
 
-Baseline Twitch IRC chat bot in C.
+Barebone Twitch IRC chat relay/bot in C.
+
+There are a lot of these out there. This one is not better, and probably worse in most
+aspects. But it's mine. :)
 
 ## Usage
 ```
 ./twitch-bot my_user_name "oauth:my_oauth_token" channel_name [-f|-s]
 ```
 
-## What it does
+## What it can do
 
 Connects to Twitch IRC, authenticates with given user data, and joins specified channel.
 
@@ -36,6 +39,10 @@ For example, to send a message to a chat just type in `PRIVMSG #channel_name :he
 
 ## Commands
 
+*Note:* this commands framework is just an example of adding custom logic to the client.
+If you need an actual chatbot, I suggest writing it as a separate program that just
+interacts with this program via std channels or pipes.
+
 The program supports custom automated commands. See `commands` directory for basic
 directions. In short, adding a new command should include:
 
@@ -61,13 +68,17 @@ you can use:
 - `REGISTER(xxx)` adds command's functions to a list of commands to check agains
 when receiving a new channel message.
 
-*Note:* this commands framework is just an example of adding custom logic to the client.
-If you need an actual chatbot, I suggest writing it as a separate program that just
-interacts with in and out pipes.
+## TODO
+
+- More friendly input command parsing. Typign out `PRIVMSG #mychannel :mymessage` is
+annoying.
+- Add Dbus interface along with pipes and standard in/out.
+- Investigate and stabilize connection action sequence. Sometimes the connection hangs 
+waiting for server's response.
 
 ## License
 
-[WTFPL](http://www.wtfpl.net/)
+[GNU LGPLv2.1](https://www.gnu.org/licenses/old-licenses/lgpl-2.1.en.html).
 
 ## Acknowledgements
 
