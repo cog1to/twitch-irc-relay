@@ -7,17 +7,20 @@ aspects. But it's mine. :)
 
 ## Usage
 ```
-./twitch-bot my_user_name "oauth:my_oauth_token" channel_name [-f|-s]
+./twitch-bot my_user_name "oauth:my_oauth_token" channel_name [-f|-s|-d]
 ```
 
 ## What it can do
 
 Connects to Twitch IRC, authenticates with given user data, and joins specified channel.
 
-If .`-f` argument was provided, two FIFO pipes will be created at `/tmp/twitch-bot-in|out`.
+If `-f` argument was provided, two FIFO pipes will be created at `/tmp/twitch-bot-in|out`.
 The `-in` one is observed to receive commands and send them to the channel. The
 `-out` one outputs whatever messages it receives from other users in the
 channel.
+
+If `-d` was provided, the client will try to connect to the DBus and send incoming IRC
+messages as DBus signals. You can tweak the interface/type strings in `client.c`.
 
 Otherwise the client will listen to `stdin` and output to `stdout`.
 

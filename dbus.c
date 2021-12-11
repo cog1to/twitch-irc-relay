@@ -138,7 +138,7 @@ void dbus_server_send_signal(
   msg = dbus_message_new_signal(
     path,
     interface,
-    name  
+    name
   );
 
   if (msg == NULL) {
@@ -160,7 +160,7 @@ void dbus_server_send_signal(
     return;
   }
 
-  dbus_connection_flush(server->conn); 
+  dbus_connection_flush(server->conn);
   dbus_message_unref(msg);
 }
 
