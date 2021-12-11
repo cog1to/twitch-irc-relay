@@ -13,15 +13,14 @@
 #include "irc.h"
 #include "commands/list.h"
 #include "debug.h"
+#include "dbus.h"
 
 /** Commands **/
 
 COMMAND(hi)
-COMMAND(trnm)
 
 void register_commands() {
   REGISTER(hi)
-  REGISTER(trnm)
 }
 
 /** Signal handling **/
@@ -72,6 +71,14 @@ irc_t *do_connect(char *server, int port, char *user, char *password, char *chan
 void output_message(int file, irc_message_t *message);
 
 /**
+ * Sends the message to the DBUS.
+ *
+ * @param server: DBUS connection holder.
+ * @param message: Message to send.
+ **/
+void send_message_to_dbus(dbus_server_t *server, irc_message_t *message);
+
+/**
  * Prints out usage info to STDERR.
  **/
 void print_usage();
@@ -110,12 +117,18 @@ void string_quote_escape(char *in, char *out, int outsize);
 char const * const IN_FIFO_PATH = "/tmp/twitch-bot-in";
 char const * const OUT_FIFO_PATH = "/tmp/twitch-bot-out";
 
+/* DBUS connection settings. */
+char const * const DBUS_NAME = "ru.aint.twitch.chat";
+char const * const DBUS_INTERFACE = "ru.aint.twitch.signal";
+char const * const DBUS_SIGNAL = "Command";
+
 /* Input message buffer size. */
 int const INPUT_BUFFER_SIZE = 1024;
 
 typedef enum {
   IO_FIFO,
-  IO_STD
+  IO_STD,
+  IO_DBUS
 } io_t;
 
 /** Main **/
@@ -134,11 +147,13 @@ int main(int argc, char **argv) {
   user = argv[1];
   password = argv[2];
   channel = argv[3];
-  
+
   // IO type.
   if (argc > 4) {
     if (strcmp("-f", argv[4]) == 0) {
       io_type = IO_FIFO;
+    } else if (strcmp("-d", argv[4]) == 0) {
+      io_type = IO_DBUS;
     }
   }
 
@@ -156,11 +171,12 @@ int main(int argc, char **argv) {
   // Message buffer.
   irc_message_t *message = NULL;
 
-  LOG(LOG_LEVEL_DEBUG, "DEBUG: Opening a FIFO\n");
+  LOG(LOG_LEVEL_DEBUG, "DEBUG: Setting up the I/O\n");
 
-  // Input.
+  // I/O setup.
   int input_fd = 0, output_fd = 1;
   char command[INPUT_BUFFER_SIZE];
+  dbus_server_t *dbus = NULL;
 
   if (io_type == IO_FIFO) {
     int error = mkfifo(IN_FIFO_PATH, S_IRUSR | S_IWUSR);
@@ -181,9 +197,15 @@ int main(int argc, char **argv) {
 
     // Output feed.
     output_fd = open(OUT_FIFO_PATH, O_RDWR);
+  } else if (io_type == IO_DBUS) {
+    dbus = dbus_server_init(DBUS_NAME, DBUS_INTERFACE, DBUS_SIGNAL);
+    if (dbus == NULL) {
+      perror("Failed to establish a connection to DBUS");
+      exit(-1);
+    }
   }
 
-  // We want to wait for either FIFO input or socket data.
+  // We want to wait for either command input or socket data.
   fd_set readfds;
 
   // Add signal interruptors.
@@ -255,8 +277,12 @@ int main(int argc, char **argv) {
           // Parse the message
           // Ignore PING, pipe everything else to the output.
           if (strcmp(message->command, "PRIVMSG") == 0) {
-            output_message(output_fd, message);
-            command_handle_message(irc, message);
+            if (io_type == IO_DBUS && dbus != NULL) {
+              send_message_to_dbus(dbus, message);
+            } else {
+              output_message(output_fd, message);
+              command_handle_message(irc, message);
+            }
           } else if (strcmp(message->command, "PING") == 0) {
             irc_command(irc, "PONG %s", user);
           } else {
@@ -278,6 +304,9 @@ int main(int argc, char **argv) {
   // Clean up.
   if (irc != NULL) {
     irc_free(irc);
+  }
+  if (dbus != NULL) {
+    dbus_server_deinit(dbus);
   }
 
   // Close the streams.
@@ -365,8 +394,7 @@ irc_t *do_connect(char *server, int port, char *user, char *password, char *chan
   return irc;
 }
 
-void output_message(int file, irc_message_t *message) {
-  char buffer[1024] = { 0 };
+void serialize_message(irc_message_t *message, char *buffer) {
   char escaped_message[1024] = { 0 };
 
   if (message->sender == NULL || message->tags == NULL || message->message == NULL) {
@@ -380,13 +408,29 @@ void output_message(int file, irc_message_t *message) {
   // Quote-escape message first, then append it to the output.
   string_quote_escape(message->message, escaped_message, 1010 - len);
   sprintf(buffer+len, ",\"message\":\"%s\"}\n", escaped_message);
+}
 
+void send_message_to_dbus(dbus_server_t *server, irc_message_t *message) {
+  char buffer[1024] = { 0 };
+  serialize_message(message, buffer);
+  dbus_server_send_signal(
+    server,
+    "/ru/aint/twitch/signal",
+    "ru.aint.twitch.signal",
+    "Message",
+    buffer
+  );
+}
+
+void output_message(int file, irc_message_t *message) {
+  char buffer[1024] = { 0 };
+  serialize_message(message, buffer);
   write(file, buffer, strlen(buffer));
 }
 
 void print_usage() {
   fprintf(stderr,
-      "Usage: twitch-bot <user> <password> <channel> [-f|-s]\n  -f: Use named pipes instead of STD for input and output.\n  -s: [Default] Use standard input/output pipes for input and output.\n"
+      "Usage: twitch-bot <user> <password> <channel> [-f|-s|-d]\n  -f: Use named pipes instead of STD for input and output.\n  -s: [Default] Use standard input/output pipes for input and output.\n  -d: Use DBUS to send and receive chat messages and commands.\n"
   );
 }
 
