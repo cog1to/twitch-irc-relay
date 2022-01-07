@@ -46,7 +46,7 @@ dbus_server_t *dbus_server_init(const char *dest, const char *interface, const c
 
   // Add a match rule.
   char match_string[128] = {0};
-  sprintf(match_string, "type='signal',interface='%s.%s'", interface, type);
+  sprintf(match_string, "type='signal',interface='%s'", interface);
   dbus_bus_add_match(conn, match_string, &err);
   dbus_connection_flush(conn);
   if (dbus_error_is_set(&err)) {

@@ -14,6 +14,7 @@
 #include "commands/list.h"
 #include "debug.h"
 #include "dbus.h"
+#include "utils.h"
 
 /** Commands **/
 
@@ -102,14 +103,14 @@ int read_line(char *buffer, int size, int fd);
 void setup_signals(sigset_t *sigset);
 
 /**
- * Quote-escapes input string and puts it into output string.
- * If resulting string is larger than output, the string is truncated.
+ * Transforms incoming message into a valid IRC command.
  *
- * @param in: Input string.
- * @param out: Output string.
- * @param outsize: Byte-length of the output buffer.
+ * @param in: Incoming message.
+ * @param out: Transformed message output buffer.
+ * @oaram outsize: Size of the buffer.
+ * @param channel: Channel name to send command to.
  */
-void string_quote_escape(char *in, char *out, int outsize);
+void transform_incoming_message(char *in, char *out, int outsize, char *channel);
 
 /** Constants **/
 
@@ -121,6 +122,7 @@ char const * const OUT_FIFO_PATH = "/tmp/twitch-bot-out";
 char const * const DBUS_NAME = "ru.aint.twitch.chat";
 char const * const DBUS_INTERFACE = "ru.aint.twitch.signal";
 char const * const DBUS_SIGNAL = "Command";
+char const * const DBUS_OUT_SIGNAL = "Message";
 
 /* Input message buffer size. */
 int const INPUT_BUFFER_SIZE = 1024;
@@ -171,11 +173,19 @@ int main(int argc, char **argv) {
   // Message buffer.
   irc_message_t *message = NULL;
 
+  // Dbus buffer.
+  char *dbus_message = NULL;
+
+  // I/O buffer.
+  char input_buffer[INPUT_BUFFER_SIZE];
+
+  // Incoming command buffer.
+  char command[INPUT_BUFFER_SIZE];
+
   LOG(LOG_LEVEL_DEBUG, "DEBUG: Setting up the I/O\n");
 
   // I/O setup.
   int input_fd = 0, output_fd = 1;
-  char command[INPUT_BUFFER_SIZE];
   dbus_server_t *dbus = NULL;
 
   if (io_type == IO_FIFO) {
@@ -234,13 +244,22 @@ int main(int argc, char **argv) {
     }
 
     FD_ZERO(&readfds);
-    FD_SET(irc_get_fd(irc), &readfds);
+
+    // IRC input stream.
+    int irc_fd = irc_get_fd(irc);
+    FD_SET(irc_fd, &readfds);
+
+    // STD/FIFO input stream.
     FD_SET(input_fd, &readfds);
 
-    int maxfd = irc_get_fd(irc);
-    if (maxfd < input_fd) {
-      maxfd = input_fd;
+    // DBUS input stream.
+    int dbus_fd = -1;
+    if (dbus != NULL) {
+      dbus_fd = dbus_server_get_fd(dbus);
+      FD_SET(dbus_fd, &readfds);
     }
+
+    int maxfd = var_max_int(&irc_fd, &dbus_fd, &input_fd, NULL);
 
     timeout.tv_sec = 20;
     timeout.tv_nsec = 0;
@@ -260,13 +279,14 @@ int main(int argc, char **argv) {
 
     if (FD_ISSET(input_fd, &readfds)) {
       LOG(LOG_LEVEL_DEBUG, "DEBUG: Incoming message\n");
-      memset(command, 0, INPUT_BUFFER_SIZE);
-      if ((read_line(command, sizeof(command), input_fd)) != -1) {
+      memset(input_buffer, 0, INPUT_BUFFER_SIZE);
+      if ((read_line(input_buffer, sizeof(input_buffer), input_fd)) != -1) {
+        transform_incoming_message(input_buffer, command, INPUT_BUFFER_SIZE, channel);
         irc_command(irc, "%s\n", command);
       }
     }
 
-    if (FD_ISSET(irc_get_fd(irc), &readfds)) {
+    if (FD_ISSET(irc_fd, &readfds)) {
       LOG(LOG_LEVEL_DEBUG, "DEBUG: Got some data in the socket\n");
       do {
         message = irc_next_message(irc);
@@ -295,6 +315,17 @@ int main(int argc, char **argv) {
       } while (message != NULL);
     }
 
+    if (FD_ISSET(dbus_fd, &readfds)) {
+      LOG(LOG_LEVEL_DEBUG, "DEBUG: Got incoming DBUS signal\n");
+      dbus_server_get_signal(dbus, &dbus_message);
+      if (dbus_message != NULL) {
+        transform_incoming_message(dbus_message, command, INPUT_BUFFER_SIZE, channel);
+        irc_command(irc, "%s\n", command);
+      } else {
+        LOG(LOG_LEVEL_DEBUG, "DEBUG: Failed to read DBUS signal\n");
+      }
+      dbus_message = NULL;
+    }
 
     if (irc_is_connected(irc) == 0) {
       reconnect = 1;
@@ -416,8 +447,8 @@ void send_message_to_dbus(dbus_server_t *server, irc_message_t *message) {
   dbus_server_send_signal(
     server,
     "/ru/aint/twitch/signal",
-    "ru.aint.twitch.signal",
-    "Message",
+    DBUS_INTERFACE,
+    DBUS_OUT_SIGNAL,
     buffer
   );
 }
@@ -472,18 +503,7 @@ void setup_signals(sigset_t *sigset) {
   }
 }
 
-void string_quote_escape(char *in, char *out, int outsize) {
-  int out_idx = 0;
-  for (int idx = 0; idx < strlen(in) && out_idx < outsize - 1; idx++) {
-    if (in[idx] == '"') {
-      out[out_idx++] = '\\';
-    }
-
-    if (out_idx < (outsize - 1)) {
-      out[out_idx] = in[idx];
-      out_idx += 1;
-    }
-  }
-
-  out[out_idx] = '\0';
+void transform_incoming_message(char *in, char *out, int outsize, char *channel) {
+  memset(out, 0, outsize);
+  snprintf(out, outsize - 1, "PRIVMSG #%s :%s", channel, in);
 }
