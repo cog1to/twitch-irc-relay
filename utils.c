@@ -25,6 +25,9 @@ void string_quote_escape(char *in, char *out, int outsize) {
     if (in[idx] == '"') {
       out[out_idx++] = '\\';
     }
+    if (in[idx] == '\\') {
+      out[out_idx++] = '\\';
+    }
 
     if (out_idx < (outsize - 1)) {
       out[out_idx] = in[idx];
