@@ -152,10 +152,15 @@ int main(int argc, char **argv) {
 
   // IO type.
   if (argc > 4) {
-    if (strcmp("-f", argv[4]) == 0) {
-      io_type = IO_FIFO;
-    } else if (strcmp("-d", argv[4]) == 0) {
-      io_type = IO_DBUS;
+    for (int idx = 4; idx < argc; idx++) {
+      if (strcmp("-f", argv[idx]) == 0) {
+        io_type = IO_FIFO;
+      } else if (strcmp("-d", argv[idx]) == 0) {
+        io_type = IO_DBUS;
+      } else if (strcmp("--debug", argv[idx]) == 0) {
+        printf("chaning log level\n");
+        LOG_LEVEL = LOG_LEVEL_DEBUG;
+      }
     }
   }
 

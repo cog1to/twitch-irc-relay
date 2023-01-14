@@ -2,6 +2,8 @@
 #include <stdio.h>
 #include "debug.h"
 
+int LOG_LEVEL = LOG_LEVEL_ERROR;
+
 void LOG(int level, char *fmt, ...) {
   if (level >= LOG_LEVEL) {
     va_list args;
