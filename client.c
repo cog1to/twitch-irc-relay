@@ -298,6 +298,7 @@ int main(int argc, char **argv) {
           // Ignore PING, pipe everything else to the output.
           if (strcmp(message->command, "PRIVMSG") == 0) {
             if (io_type == IO_DBUS && dbus != NULL) {
+              LOG(LOG_LEVEL_DEBUG, "DEBUG: Sending message to DBus\n");
               send_message_to_dbus(dbus, message);
             } else {
               output_message(output_fd, message);
@@ -412,7 +413,7 @@ irc_t *do_connect(char *server, int port, char *user, char *password, char *chan
   }
 
   // Send JOIN message, wait for NICK list end response.
-  LOG(LOG_LEVEL_DEBUG, "DEBUG: Joining the channel\n");
+  LOG(LOG_LEVEL_DEBUG, "DEBUG: Joining the channel #%s\n", channel);
   irc_command(irc, "JOIN #%s", channel);
   for (int joined = 0; joined < 1; ) {
     message = wait_for_next_message(irc);
@@ -426,7 +427,7 @@ irc_t *do_connect(char *server, int port, char *user, char *password, char *chan
 }
 
 void serialize_message(irc_message_t *message, char *buffer) {
-  char escaped_message[1024] = { 0 };
+  char escaped_message[2048] = { 0 };
 
   if (message->sender == NULL || message->tags == NULL || message->message == NULL) {
     return;
@@ -437,12 +438,12 @@ void serialize_message(irc_message_t *message, char *buffer) {
     len = len + sprintf(buffer+len, ",\"command\":\"%s\"", message->command);
 
   // Quote-escape message first, then append it to the output.
-  string_quote_escape(message->message, escaped_message, 1010 - len);
+  string_quote_escape(message->message, escaped_message, 2034 - len);
   sprintf(buffer+len, ",\"message\":\"%s\"}\n", escaped_message);
 }
 
 void send_message_to_dbus(dbus_server_t *server, irc_message_t *message) {
-  char buffer[1024] = { 0 };
+  char buffer[2048] = { 0 };
   serialize_message(message, buffer);
   dbus_server_send_signal(
     server,
@@ -454,7 +455,7 @@ void send_message_to_dbus(dbus_server_t *server, irc_message_t *message) {
 }
 
 void output_message(int file, irc_message_t *message) {
-  char buffer[1024] = { 0 };
+  char buffer[2048] = { 0 };
   serialize_message(message, buffer);
   write(file, buffer, strlen(buffer));
 }
