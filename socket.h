@@ -1,7 +1,7 @@
 #ifndef SOCKET_HEADER
 #define SOCKET_HEADER
 
-/** 
+/**
  * Opens a socket connection to given server:port.
  *
  * @param host: Host name.
@@ -10,6 +10,16 @@
  * @return: A file descriptor if connection is opened.
  **/
 int sock_connect(char *host, int port);
+
+/**
+ * Closes open socket connection
+ *
+ * @param socket: Socket's file descriptor;
+ *
+ * @return: 0 in case of success, -1 in case of an error. Check errno for
+ * the specific error.
+ */
+int sock_close(int socket);
 
 /**
  * Reads a portion of data from a socket.
@@ -23,7 +33,8 @@ int sock_connect(char *host, int port);
 int sock_receive(int socket, char *data, short size);
 
 /**
- * Reads a portion of data from a socket while blocking the caller thread until some amount of data is read.
+ * Reads a portion of data from a socket while blocking the caller thread until
+ * some amount of data is read.
  *
  * @param socket: Socket's file descriptor.
  * @param data: A byte buffer to read into.
