@@ -30,12 +30,29 @@ Otherwise the client will listen to `stdin` and output to `stdout`.
 
 Output is in JSON format. The client filters out PING messages and sends
 everything else to the selected output channel. Here's an example of a
-message:
+message (reformatted for easier reading):
 
 ```json
-{"tags":"@badge-info=;badges=broadcaster/1;client-nonce=32bc0ef43873d1203001e148ec84ed03;color=#8A2BE2;display-name=cog1to;emotes=
-;flags=;id=0ddb158f-44b1-4e9b-89a7-9b4d660fd9bb;mod=0;room-id=32319568;subscriber=0;tmi-sent-ts=1633040608904;turbo=0;user-id=3231
-9568;user-type=","sender":":cog1to!cog1to@cog1to.tmi.twitch.tv","command":"PRIVMSG","message":"test"}
+{
+  "tags": "@badge-info=;
+    badges=broadcaster/1;
+    client-nonce=32bc0ef43873d1203001e148ec84ed03;
+    color=#8A2BE2;
+    display-name=cog1to;
+    emotes=;
+    flags=;
+    id=0ddb158f-44b1-4e9b-89a7-9b4d660fd9bb;
+    mod=0;
+    room-id=32319568;
+    subscriber=0;
+    tmi-sent-ts=1633040608904;
+    turbo=0;
+    user-id=3231
+    9568;user-type=",
+  "sender": ":cog1to!cog1to@cog1to.tmi.twitch.tv",
+  "command": "PRIVMSG",
+  "message": "test"
+}
 ```
 
 ### DBus Output
